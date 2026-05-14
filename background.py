@@ -24,7 +24,7 @@ class Game:
     # Scroll funktsioon mis liigutab valged kaste
     def scroll(self):
         for s in self.squares:
-            self.canvas.move(s, 0, 5) # Kiirus, mida suurem kolmas number seda kiirem on, max on 100
+            self.canvas.move(s, 0, 5) # Kiirus mida suurem kolmas number seda kiirem on, max on 100
             if self.canvas.coords(s)[1] > 960:
                 self.canvas.move(s, 0, -1500)
         self.root.after(10, self.scroll)
