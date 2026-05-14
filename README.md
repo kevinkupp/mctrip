@@ -1,2 +1,2 @@
-# mctrip
+# McTrip
 Video mäng
