@@ -23,14 +23,20 @@ class Timer:
 class Score:
     def __init__(self):
         self.points = 0
-        self.font = pygame.font.SysFont("Arial", 32, bold=True)
+        self.high_score = 0
+        self.font = pygame.font.SysFont("Arial", 24, bold=True)
 
     def lisa_punkte(self, kogus):
         self.points += kogus
+        if self.points > self.high_score:
+            self.high_score = self.points
 
     def joonista(self, aken):
         skoor_pind = self.font.render(f"Score: {int(self.points)}", True, (255, 255, 255))
         aken.blit(skoor_pind, (20, 20))
+
+        high_score_pind = self.font.render(f"High Score: {int(self.high_score)}", True, (255, 255, 255))
+        aken.blit(high_score_pind, (480, 20))
 
     def reset(self):
         self.points = 0
@@ -81,6 +87,7 @@ class McTrip:
 
         self.mang_kaib = False
         self.mang_labi = False
+        self.dialoog_kaib = False # Dialoogi olek
         
         self.nupp_rect = pygame.Rect(230, 440, 180, 80)
         self.reset_nupp_rect = pygame.Rect(200, 500, 240, 80)
@@ -95,32 +102,65 @@ class McTrip:
         self.vastaste_kiirus = 10 
         self.teksti_timer = 180
         self.taimer = Timer()
+
+        # DIALOOGI ANDMED
+        self.dialoogi_tekstid = [
+            "Kurat, kõht on nii tühi...",
+            "Ma tahaks bigmac einet...",
+            "Ja tahaks suurt kokat ka...",
+            "Ma kuulsin, et mäkkis on head hinnad ka...",
+            "Lähme ruttu mäkki!",
+            "Vajuta 'Enter', et sõitma hakata!"
+        ]
+        self.praegune_lause = 0
+        self.dialoog_font = pygame.font.SysFont("Calibri", 26, bold=True)
         
-        # LOGO LAADIMINE
+        # PILTIDE LAADIMINE
         try:
             self.logo_pilt = pygame.image.load("McTrip.png").convert_alpha()
             logo_laius = 450
             logo_korgus = int(self.logo_pilt.get_height() * (logo_laius / self.logo_pilt.get_width()))
             self.logo_pilt = pygame.transform.scale(self.logo_pilt, (logo_laius, logo_korgus))
-            # Paigutame logo PLAY nupu kohale (nupp on y=440 juures)
             self.logo_rect = self.logo_pilt.get_rect(center=(self.LAAIUS // 2, 255))
         except:
             self.logo_pilt = None
 
-        # TOIDU PILT
+        # TOIDU PILTIDE LAADIMINE
         try:
-            self.toit_pilt = pygame.image.load("friikad.png").convert_alpha()
-            self.toit_pilt = pygame.transform.scale(self.toit_pilt, (80, 80))
+            self.pildid = {
+                "friikad": pygame.transform.scale(pygame.image.load("friikad.png").convert_alpha(), (70, 70)),
+                "burger": pygame.transform.scale(pygame.image.load("Burger.png").convert_alpha(), (80, 50)),
+                "mcsoft": pygame.transform.scale(pygame.image.load("McSoft2.png").convert_alpha(), (50, 80))
+            }
         except:
-            self.toit_pilt = pygame.Surface((40, 40))
-            self.toit_pilt.fill((255, 255, 0))
+            # Kui pilte pole, loome värvilised kastid
+            self.pildid = {
+                "friikad": pygame.Surface((40, 40)),
+                "burger": pygame.Surface((50, 30)),
+                "mcsoft": pygame.Surface((30, 50))
+            }
+            self.pildid["friikad"].fill((255, 255, 0))
+            self.pildid["burger"].fill((139, 69, 19))
+            self.pildid["mcsoft"].fill((0, 191, 255))
+
+        # Dialoogi pildid
+        try:
+            self.meheke_pilt = pygame.image.load("Meheke_uus.png").convert_alpha()
+            self.meheke_pilt = pygame.transform.scale(self.meheke_pilt, (160, 160)) # Suurem mees
+            self.kast_pilt = pygame.image.load("Dialoog kast_uus.png").convert_alpha()
+            self.kast_pilt = pygame.transform.scale(self.kast_pilt, (640, 160))
+        except:
+            self.meheke_pilt = None
+            self.kast_pilt = None
 
     def reset_mang(self):
         self.vastased = []
         self.toidud = []
         self.auto.rect.x = 300
-        self.mang_kaib = True
+        self.mang_kaib = False 
+        self.dialoog_kaib = True # Resetiga algab uuesti dialoogist
         self.mang_labi = False
+        self.praegune_lause = 0
         self.teksti_timer = 180
         self.vastaste_kiirus = 10 
         self.skoor.reset()
@@ -153,10 +193,21 @@ class McTrip:
                         break
                 if lubatud:
                     self.vastased.append([uus_rect, random.choice(self.VARVID)])
-        
-        if random.random() < 0.02:
-            toit_x = random.randint(50, self.LAAIUS - 50)
-            self.toidud.append(pygame.Rect(toit_x, -80, 80, 80))
+
+        # TOIDU TEKITAMINE TÕENÄOSUSTEGA
+        if random.random() < 0.025: # Sagedus, kui tihti üldse midagi tekib
+            toit_x = random.randint(50, self.LAAIUS - 80)
+            
+            # Määrame tüübi ja tõenäosused: friikad 70%, burger 20%, mcsoft 10%
+            tyybid = ["friikad", "burger", "mcsoft"]
+            kaalud = [70, 20, 10]
+            valitud_tyyp = random.choices(tyybid, weights=kaalud)[0]
+            
+            uus_toit = {
+                "rect": pygame.Rect(toit_x, -80, 80, 80),
+                "tyyp": valitud_tyyp
+            }
+            self.toidud.append(uus_toit)
 
     def uuenda_tausta(self):
         for triip in self.triibud:
@@ -170,16 +221,27 @@ class McTrip:
         for triip in self.triibud:
             pygame.draw.rect(self.aken, self.VALGE, (triip[0], triip[1], 10, 40))
 
-        if not self.mang_kaib and not self.mang_labi:
-            # Joonistame LOGO
+        if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib:
             if self.logo_pilt:
                 self.aken.blit(self.logo_pilt, self.logo_rect)
-
             pygame.draw.rect(self.aken, self.VALGE, self.nupp_rect)
             pygame.draw.rect(self.aken, self.MUST, self.nupp_rect, 5)
             font = pygame.font.SysFont("Calibri", 60)
             tekst = font.render("PLAY", True, self.MUST)
             self.aken.blit(tekst, (self.nupp_rect.x + 30, self.nupp_rect.y + 10))
+
+        elif self.dialoog_kaib:
+            self.auto.joonista(self.aken, (191, 12, 12))
+            if self.meheke_pilt:
+                self.aken.blit(self.meheke_pilt, (-5, 725)) 
+            if self.kast_pilt:
+                self.aken.blit(self.kast_pilt, (0, 800)) 
+            
+            lause = self.dialoog_font.render(self.dialoogi_tekstid[self.praegune_lause], True, self.MUST)
+            self.aken.blit(lause, (100, 875))
+            
+            vihje = self.dialoog_font.render("[ ENTER ]", True, (100, 100, 100))
+            self.aken.blit(vihje, (500, 900))
 
         elif self.mang_labi:
             font = pygame.font.SysFont("Calibri", 40)
@@ -187,7 +249,6 @@ class McTrip:
             fail_text = font.render(f"Final Time: {int(self.taimer.sekundid)}", True, self.VALGE)
             self.aken.blit(fail_tekst, (220, 350))
             self.aken.blit(fail_text, (220, 410))
-            
             pygame.draw.rect(self.aken, self.VALGE, self.reset_nupp_rect)
             pygame.draw.rect(self.aken, self.MUST, self.reset_nupp_rect, 5)
             btn_font = pygame.font.SysFont("Calibri", 50)
@@ -199,8 +260,10 @@ class McTrip:
             for v_andmed in self.vastased:
                 self.joonista_auto_mudel(self.aken, v_andmed[0], v_andmed[1])
             
-            for t_rect in self.toidud:
-                self.aken.blit(self.toit_pilt, t_rect)
+            # TOIDU JOONISTAMINE (Friikad, Burger, McSoft)
+            for toit in self.toidud:
+                if toit["tyyp"] in self.pildid:
+                    self.aken.blit(self.pildid[toit["tyyp"]], toit["rect"])
 
             self.skoor.joonista(self.aken)
             self.taimer.joonista(self.aken)
@@ -218,15 +281,23 @@ class McTrip:
         while True:
             for sündmus in pygame.event.get():
                 if sündmus.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
+                    pygame.quit(); sys.exit()
+                
                 if sündmus.type == pygame.MOUSEBUTTONDOWN:
-                    if not self.mang_kaib and not self.mang_labi:
+                    if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib:
                         if self.nupp_rect.collidepoint(sündmus.pos):
-                            self.mang_kaib = True
+                            self.dialoog_kaib = True # Play nupust läheb dialoogi
                     elif self.mang_labi:
                         if self.reset_nupp_rect.collidepoint(sündmus.pos):
                             self.reset_mang()
+
+                if sündmus.type == pygame.KEYDOWN and self.dialoog_kaib:
+                    if sündmus.key == pygame.K_RETURN:
+                        self.praegune_lause += 1
+                        if self.praegune_lause >= len(self.dialoogi_tekstid):
+                            self.dialoog_kaib = False
+                            self.mang_kaib = True
+                            self.taimer.reset()
             
             self.uuenda_tausta()
             
@@ -235,8 +306,7 @@ class McTrip:
                 self.taimer.uuenda()
                 
                 if self.skoor.points >= 300:
-                    pygame.quit()
-                    sys.exit()
+                    pygame.quit(); sys.exit()
                         
                 tase = self.skoor.points // 40
                 self.vastaste_kiirus = 9 + tase * 2
@@ -254,13 +324,23 @@ class McTrip:
                         self.mang_kaib = False
                         self.mang_labi = True
 
-                for t_rect in self.toidud[:]:
-                    t_rect.y += self.vastaste_kiirus
-                    if t_rect.y > self.KORGUS:
-                        self.toidud.remove(t_rect)
-                    if self.auto.rect.colliderect(t_rect):
-                        self.skoor.lisa_punkte(5) 
-                        self.toidud.remove(t_rect)
+                # Toidu liikumine ja kokkupõrge
+                for toit in self.toidud[:]:
+                    toit["rect"].y += self.vastaste_kiirus
+                    
+                    if toit["rect"].y > self.KORGUS:
+                        self.toidud.remove(toit)
+                    
+                    if self.auto.rect.colliderect(toit["rect"]):
+                        # Punktide jagamine vastavalt tüübile
+                        if toit["tyyp"] == "friikad":
+                            self.skoor.lisa_punkte(5)
+                        elif toit["tyyp"] == "burger":
+                            self.skoor.lisa_punkte(10)
+                        elif toit["tyyp"] == "mcsoft":
+                            self.skoor.lisa_punkte(15)
+                            
+                        self.toidud.remove(toit)
             
                 if self.teksti_timer > 0:
                     self.teksti_timer -= 1
