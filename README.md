@@ -1,2 +1,0 @@
-# McTrip
-Video mäng

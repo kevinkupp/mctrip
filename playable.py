@@ -36,7 +36,7 @@ class Score:
         aken.blit(skoor_pind, (20, 20))
 
         high_score_pind = self.font.render(f"High Score: {int(self.high_score)}", True, (255, 255, 255))
-        aken.blit(high_score_pind, (480, 20))
+        aken.blit(high_score_pind, (455, 20))
 
     def reset(self):
         self.points = 0
@@ -75,10 +75,15 @@ class Car:
 class McTrip:
     def __init__(self):
         pygame.init()
+        # Algatame helisüsteemi
+        pygame.mixer.init()
+
         self.LAAIUS, self.KORGUS = 640, 960
         self.aken = pygame.display.set_mode((self.LAAIUS, self.KORGUS))
         pygame.display.set_caption("McTrip")
         self.kell = pygame.time.Clock()
+
+        
 
         self.VALGE = (255, 255, 255)
         self.MUST = (0, 0, 0)
@@ -87,7 +92,7 @@ class McTrip:
 
         self.mang_kaib = False
         self.mang_labi = False
-        self.dialoog_kaib = False # Dialoogi olek
+        self.dialoog_kaib = False 
         
         self.nupp_rect = pygame.Rect(230, 440, 180, 80)
         self.reset_nupp_rect = pygame.Rect(200, 500, 240, 80)
@@ -103,17 +108,26 @@ class McTrip:
         self.teksti_timer = 180
         self.taimer = Timer()
 
-        # DIALOOGI ANDMED
+        # DIALOOGI ANDMED (Uuendatud)
         self.dialoogi_tekstid = [
             "Kurat, kõht on nii tühi...",
             "Ma tahaks bigmac einet...",
             "Ja tahaks suurt kokat ka...",
-            "Ma kuulsin, et mäkkis on head hinnad ka...",
             "Lähme ruttu mäkki!",
             "Vajuta 'Enter', et sõitma hakata!"
         ]
         self.praegune_lause = 0
         self.dialoog_font = pygame.font.SysFont("Calibri", 26, bold=True)
+        
+        # --- UUED MUUTUJAD TRÜKKIMISE EFEKTI JAOKS ---
+        self.trykitud_tekst = ""            # Tekst, mis on hetkel ekraanil
+        self.taislause = ""                 # Kogu lause, mis peab ilmuma
+        self.tahe_indeks = 0                # Mitu tähte on trükitud
+        self.trykkimise_kiirus = 2          # Mitu frame'i oodata enne uut tähte
+        self.trykkimise_counter = 0         # Taimer tähtede jaoks
+        self.tekst_ilmub = False           # Kas trükkimine käib hetkel?
+        self.meheke_offset_y = 0            # Meheke liigutamiseks y-teljel
+        self.meheke_liigub_yles = False    # Kas meheke on "hüppe" faasis
         
         # PILTIDE LAADIMINE
         try:
@@ -143,28 +157,150 @@ class McTrip:
             self.pildid["burger"].fill((139, 69, 19))
             self.pildid["mcsoft"].fill((0, 191, 255))
 
-        # Dialoogi pildid
+        # Dialoogi pildid (Uuendatud suu lahti pildiga)
         try:
             self.meheke_pilt = pygame.image.load("Meheke_uus.png").convert_alpha()
-            self.meheke_pilt = pygame.transform.scale(self.meheke_pilt, (160, 160)) # Suurem mees
+            self.meheke_pilt = pygame.transform.scale(self.meheke_pilt, (140, 160)) 
+            
+            # --- UUS PILLT: Suu lahti ---
+            self.meheke_suu_lahti = pygame.image.load("Raakimine.png").convert_alpha()
+            self.meheke_suu_lahti = pygame.transform.scale(self.meheke_suu_lahti, (140, 160))
+            
             self.kast_pilt = pygame.image.load("Dialoog kast_uus.png").convert_alpha()
             self.kast_pilt = pygame.transform.scale(self.kast_pilt, (640, 160))
         except:
             self.meheke_pilt = None
+            self.meheke_suu_lahti = None
             self.kast_pilt = None
 
+        # --- HELI LAADIMINE ---
+        try:
+            self.raakimissound = pygame.mixer.Sound("Mehe_raakimine.wav")
+            self.raakimissound.set_volume(0.03)
+        except:
+            self.raakimissound = None
+
+        # === UUS: TAUSTAMUUSIKA LISAMINE ===
+        try:
+            # Asenda "taustamuusika.mp3" oma faili nimega
+            pygame.mixer.music.load("track.wav") 
+            
+            # Määrame helitugevuse (0.0 kuni 1.0)
+            pygame.mixer.music.set_volume(0.5) 
+            
+            # Paneme muusika mängima. Lõpmatu korduse jaoks määrame loops=-1
+            pygame.mixer.music.play(loops=-1) 
+        except pygame.error as e:
+            print(f"Muusika laadimine ebaõnnestus: {e}")
+
+        # === UUS: SÖÖKIDE JA AVARII HELID ===
+        try:
+            self.heli_friikad = pygame.mixer.Sound("YUM!.mp3")
+            self.heli_burger = pygame.mixer.Sound("YUM!.mp3")
+            self.heli_mcsoft = pygame.mixer.Sound("YUM!.mp3")
+            self.heli_crash = pygame.mixer.Sound("DEATH.mp3")
+            
+            # Keera crashi heli natuke kõvemaks, et oleks matsu kuulda
+            self.heli_crash.set_volume(0.2)
+            self.heli_mcsoft.set_volume(0.2)
+            self.heli_burger.set_volume(0.2)
+            self.heli_friikad.set_volume(0.2)
+        except:
+            self.heli_friikad = None
+            self.heli_burger = None
+            self.heli_mcsoft = None
+            self.heli_crash = None
+
+        # --- LÕPU CUTSCENE'I ANDMED (LISA SIIA) ---
+        self.cutscene_kaib = False
+        self.cutscene_indeks = 0
+        self.cutscene_tekstid = [
+            "Lõpuks ometi olen kohale jõudnud",
+            "Ma olen nii ära nälginud",
+            "Oi kui hea big mac",
+            "Nüüd koju, et sittuda see kõik välja"
+        ]
+
+        # Uued muutujad fade'i jaoks
+        self.fade_alpha = 255  # 255 tähendab täiesti musta, 0 tähendab läbipaistvat
+        self.fade_pind = pygame.Surface((self.LAAIUS, self.KORGUS))
+        self.fade_pind.fill(self.MUST)
+        self.fading_in = False
+
+        # Laadime pildid (ootab faile lopustseen1.png, lopustseen2.png jne)
+        self.cutscene_pildid = []
+        for i in range(1, len(self.cutscene_tekstid) + 1):
+            try:
+                pilt = pygame.image.load(f"lopustseen{i}.png").convert()
+                pilt = pygame.transform.scale(pilt, (self.LAAIUS, self.KORGUS))
+                self.cutscene_pildid.append(pilt)
+            except:
+                # Kui pilte kaustas pole, luuakse ajutised rohekad taustad testimiseks
+                asendus_pind = pygame.Surface((self.LAAIUS, self.KORGUS))
+                asendus_pind.fill((20, 40 + (i * 30), 20))
+                self.cutscene_pildid.append(asendus_pind)
+
+        self.valitud_raskus = None  # Alguses pole midagi valitud
+        self.sihtskoor = 200
+        
+        # Raskusastme nupud (nihutatud veidi ülespoole, et PLAY mahuks alla)
+        self.nupp_easy = pygame.Rect(200, 500, 230, 60)
+        self.nupp_medium = pygame.Rect(200, 580, 235, 60)
+        self.nupp_hard = pygame.Rect(200, 660, 230, 60)
+        
+        # PLAY nupp
+        self.nupp_play = pygame.Rect(220, 760, 200, 80)
+
+    # --- UUS FUNKTSIOON: Teksti trükkimise algatamine ja mehe hüpe ---
+    def algata_teksti_trykkimine(self):
+        # Vaatame, kumba teksti parajasti trükkida on vaja
+        if self.dialoog_kaib and self.praegune_lause < len(self.dialoogi_tekstid):
+            self.taislause = self.dialoogi_tekstid[self.praegune_lause]
+        elif self.cutscene_kaib and self.cutscene_indeks < len(self.cutscene_tekstid):
+            self.taislause = self.cutscene_tekstid[self.cutscene_indeks]
+        else:
+            # Kui tekstid saavad otsa
+            if self.dialoog_kaib:
+                self.dialoog_kaib = False
+                self.mang_kaib = True
+                self.taimer.reset()
+            elif self.cutscene_kaib:
+                self.cutscene_kaib = False
+                self.mang_labi = True
+            return
+
+        self.tahe_indeks = 0
+        self.trykitud_tekst = ""
+        self.tekst_ilmub = True
+        self.meheke_offset_y = -20
+        self.meheke_huppe_taimer = 10 
+        
+        if self.raakimissound:
+            self.raakimissound.play(loops=-1)
+
     def reset_mang(self):
+        self.cutscene_kaib = False
+        self.cutscene_indeks = 0
+        self.mang_kaib = False
+        self.mang_labi = False
+        self.dialoog_kaib = False
+        self.valitud_raskus = None  # LISA SEE RIDA
+        
         self.vastased = []
         self.toidud = []
         self.auto.rect.x = 300
-        self.mang_kaib = False 
-        self.dialoog_kaib = True # Resetiga algab uuesti dialoogist
-        self.mang_labi = False
+        
         self.praegune_lause = 0
         self.teksti_timer = 180
         self.vastaste_kiirus = 10 
         self.skoor.reset()
         self.taimer.reset()
+
+        if pygame.mixer.music.get_busy() == False:
+            pygame.mixer.music.play(loops=-1)
+        
+        
+        # EEMALDATUD: self.algata_teksti_trykkimine() rida pole siin enam vaja!
 
     def joonista_auto_mudel(self, aken, rect, varv):
         pygame.draw.rect(aken, varv, rect, border_radius=8)
@@ -221,27 +357,97 @@ class McTrip:
         for triip in self.triibud:
             pygame.draw.rect(self.aken, self.VALGE, (triip[0], triip[1], 10, 40))
 
-        if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib:
+        if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib and not self.cutscene_kaib:
             if self.logo_pilt:
                 self.aken.blit(self.logo_pilt, self.logo_rect)
-            pygame.draw.rect(self.aken, self.VALGE, self.nupp_rect)
-            pygame.draw.rect(self.aken, self.MUST, self.nupp_rect, 5)
-            font = pygame.font.SysFont("Calibri", 60)
-            tekst = font.render("PLAY", True, self.MUST)
-            self.aken.blit(tekst, (self.nupp_rect.x + 30, self.nupp_rect.y + 10))
+        
+        if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib and not self.cutscene_kaib:
+            if self.logo_pilt:
+                self.aken.blit(self.logo_pilt, self.logo_rect)
+            
+            # --- JOONISTAME RASKUSASTME NUPUD ---
+        if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib and not self.cutscene_kaib:
+            if self.logo_pilt:
+                self.aken.blit(self.logo_pilt, self.logo_rect)
+            
+            font_nupp = pygame.font.SysFont("Calibri", 30, bold=True)
+            raskused = [
+                (self.nupp_easy, "KERGE (200)", (0, 200, 0), "easy"),
+                (self.nupp_medium, "KESKMINE (300)", (200, 200, 0), "medium"),
+                (self.nupp_hard, "RASKE (400)", (200, 0, 0), "difficult")
+            ]
 
+            for rect, tekst, varv, nimi in raskused:
+                # Kui see nupp on valitud, teeme piirjoone paksemaks (8), muidu tavaline (4)
+                paksus = 8 if self.valitud_raskus == nimi else 4
+                pygame.draw.rect(self.aken, (255, 255, 255), rect, border_radius=10)
+                pygame.draw.rect(self.aken, varv, rect, paksus, border_radius=10)
+                t_pind = font_nupp.render(tekst, True, (0, 0, 0))
+                self.aken.blit(t_pind, (rect.x + 35, rect.y + 15))
+
+            # --- JOONISTAME PLAY NUPU ---
+            # Kui raskus on valitud, on PLAY nupp erekollane, muidu hallikas
+            play_varv = (255, 215, 0) if self.valitud_raskus else (150, 150, 150)
+            pygame.draw.rect(self.aken, play_varv, self.nupp_play, border_radius=15)
+            pygame.draw.rect(self.aken, (0, 0, 0), self.nupp_play, 5, border_radius=15)
+            play_tekst = font_nupp.render("START GAME", True, (0, 0, 0))
+            self.aken.blit(play_tekst, (self.nupp_play.x + 25, self.nupp_play.y + 25))
+        # --- DIALOOGI JOONISTAMISE LOGIKA (UUENDATUD) ---
         elif self.dialoog_kaib:
             self.auto.joonista(self.aken, (191, 12, 12))
-            if self.meheke_pilt:
-                self.aken.blit(self.meheke_pilt, (-5, 725)) 
+            
+            # Valib pildi selle järgi, kas tekst jookseb (suu lahti) või mitte
+            pilt_mida_kasutada = self.meheke_suu_lahti if self.tekst_ilmub else self.meheke_pilt
+
+            # Meheke hüppe loogika tagasitõmbumine (kui vajutati enterit)
+            if self.meheke_offset_y < 0:
+                self.meheke_offset_y += 2
+                if self.meheke_offset_y > 0:
+                    self.meheke_offset_y = 0
+
+            # Joonistame pildid ekraanile
+            if pilt_mida_kasutada:
+                self.aken.blit(pilt_mida_kasutada, (-5, 725 + self.meheke_offset_y))
+            
             if self.kast_pilt:
-                self.aken.blit(self.kast_pilt, (0, 800)) 
+                self.aken.blit(self.kast_pilt, (0, 800))
             
-            lause = self.dialoog_font.render(self.dialoogi_tekstid[self.praegune_lause], True, self.MUST)
-            self.aken.blit(lause, (100, 875))
+            # Joonistame teksti
+            if self.dialoog_font:
+                lause = self.dialoog_font.render(self.trykitud_tekst, True, self.MUST)
+                self.aken.blit(lause, (100, 875))
             
-            vihje = self.dialoog_font.render("[ ENTER ]", True, (100, 100, 100))
-            self.aken.blit(vihje, (500, 900))
+            # ENTER vihje ilmub alles siis, kui mees on rääkimise lõpetanud
+            if not self.tekst_ilmub:
+                vihje = self.dialoog_font.render("[ ENTER ]", True, (100, 100, 100))
+                self.aken.blit(vihje, (500, 900))
+        
+        # --- LÕPU CUTSCENE JOONISTAMINE ---
+        elif self.cutscene_kaib:
+            # 1. Kuvame täisekraani taustapildi
+            if self.cutscene_pildid and self.cutscene_indeks < len(self.cutscene_pildid):
+                self.aken.blit(self.cutscene_pildid[self.cutscene_indeks], (0, 0))
+            
+            # 2. Joonistame musta kile pildi peale, kui hajumine käib
+            if self.fade_alpha > 0:
+                self.fade_pind.set_alpha(self.fade_alpha)
+                self.aken.blit(self.fade_pind, (0, 0))
+            
+            # 3. Dialoogikast ja tekst tulevad NÄHTAVALE alles siis, kui fade on läbi
+            if not self.fading_in:
+                if self.kast_pilt:
+                    self.aken.blit(self.kast_pilt, (0, 800))
+                else:
+                    pygame.draw.rect(self.aken, self.VALGE, (0, 800, 640, 160))
+                
+                if self.dialoog_font:
+                    lause = self.dialoog_font.render(self.trykitud_tekst, True, self.MUST)
+                    self.aken.blit(lause, (100, 875))
+                
+                # ENTER vihje ilmub, kui lause on trükitud
+                if not self.tekst_ilmub:
+                    vihje = self.dialoog_font.render("[ ENTER ]", True, (100, 100, 100))
+                    self.aken.blit(vihje, (500, 900))
 
         elif self.mang_labi:
             font = pygame.font.SysFont("Calibri", 40)
@@ -281,32 +487,94 @@ class McTrip:
         while True:
             for sündmus in pygame.event.get():
                 if sündmus.type == pygame.QUIT:
-                    pygame.quit(); sys.exit()
-                
-                if sündmus.type == pygame.MOUSEBUTTONDOWN:
-                    if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib:
-                        if self.nupp_rect.collidepoint(sündmus.pos):
-                            self.dialoog_kaib = True # Play nupust läheb dialoogi
+                    pygame.quit()
+                    sys.exit()
+
+                # 1. KLAHVIVAJUTUSED (Klaviatuuril pole ".pos" omadust!)
+                if sündmus.type == pygame.KEYDOWN:
+                    if sündmus.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        sys.exit()
+
+                    if sündmus.key == pygame.K_RETURN:
+                        if self.dialoog_kaib:
+                            if self.tekst_ilmub:
+                                self.trykitud_tekst = self.taislause
+                                self.tahe_indeks = len(self.taislause)
+                                self.tekst_ilmub = False
+                                if self.raakimissound: self.raakimissound.stop()
+                            else:
+                                self.praegune_lause += 1
+                                self.algata_teksti_trykkimine()
+
+                        elif self.cutscene_kaib:
+                            if self.tekst_ilmub:
+                                self.trykitud_tekst = self.taislause
+                                self.tahe_indeks = len(self.taislause)
+                                self.tekst_ilmub = False
+                                if self.raakimissound: self.raakimissound.stop()
+                            else:
+                                self.cutscene_indeks += 1
+                                self.algata_teksti_trykkimine()
+
+                # 2. HIIREVAJUTUSED (Siin on ".pos" olemas!)
+                elif sündmus.type == pygame.MOUSEBUTTONDOWN:
+                    # Menüü nupud
+                    if not self.mang_kaib and not self.mang_labi and not self.dialoog_kaib and not self.cutscene_kaib:
+                        if self.nupp_easy.collidepoint(sündmus.pos):
+                            self.sihtskoor = 200
+                            self.valitud_raskus = "easy"
+                        elif self.nupp_medium.collidepoint(sündmus.pos):
+                            self.sihtskoor = 300
+                            self.valitud_raskus = "medium"
+                        elif self.nupp_hard.collidepoint(sündmus.pos):
+                            self.sihtskoor = 400
+                            self.valitud_raskus = "hard"
+                        elif self.nupp_play.collidepoint(sündmus.pos):
+                            if self.valitud_raskus is not None:
+                                self.dialoog_kaib = True
+                                self.algata_teksti_trykkimine()
+
+                    # Try Again nupp
                     elif self.mang_labi:
                         if self.reset_nupp_rect.collidepoint(sündmus.pos):
                             self.reset_mang()
-
-                if sündmus.type == pygame.KEYDOWN and self.dialoog_kaib:
-                    if sündmus.key == pygame.K_RETURN:
-                        self.praegune_lause += 1
-                        if self.praegune_lause >= len(self.dialoogi_tekstid):
-                            self.dialoog_kaib = False
-                            self.mang_kaib = True
-                            self.taimer.reset()
             
             self.uuenda_tausta()
+
+            # --- TEKSTI TRÜKKIMISE JA SUU LOGIKA (MÕLEMA OLEKU JAOKS) ---
+            if (self.dialoog_kaib or self.cutscene_kaib) and self.tekst_ilmub:
+                self.trykkimise_counter += 1
+                if self.trykkimise_counter >= self.trykkimise_kiirus:
+                    self.trykkimise_counter = 0
+                    if self.tahe_indeks < len(self.taislause):
+                        self.trykitud_tekst += self.taislause[self.tahe_indeks]
+                        self.tahe_indeks += 1
+                    else:
+                        self.tekst_ilmub = False
+                        if self.raakimissound:
+                            self.raakimissound.stop()
+
+            # Meheke hüppe loogika tagasitõmbumine
+            if self.meheke_offset_y < 0:
+                self.meheke_offset_y += 2
+                if self.meheke_offset_y > 0:
+                    self.meheke_offset_y = 0
             
             if self.mang_kaib:
                 self.skoor.lisa_punkte(2 / 60)
                 self.taimer.uuenda()
                 
-                if self.skoor.points >= 300:
-                    pygame.quit(); sys.exit()
+                # --- KONTROLLIME, KAS SIHTSKOOR ON KÄES ---
+                if self.skoor.points >= self.sihtskoor:
+                    self.mang_kaib = False
+                    self.cutscene_kaib = True
+                    self.fading_in = True
+                    self.fade_alpha = 255
+                    self.cutscene_indeks = 0
+                    self.vastased = []  # Puhastame ekraani autodest
+                    self.toidud = []    # Puhastame ekraani toidust
+                    pygame.mixer.music.fadeout(2000)
                         
                 tase = self.skoor.points // 40
                 self.vastaste_kiirus = 9 + tase * 2
@@ -320,7 +588,14 @@ class McTrip:
                     rect.y += self.vastaste_kiirus
                     if rect.y > self.KORGUS:
                         self.vastased.remove(v_andmed)
+                        
+                    # --- Auto kokkupõrge ---
                     if self.auto.rect.colliderect(rect):
+                        if self.heli_crash:
+                            self.heli_crash.play() # Mängime matsu heli
+                        
+                        pygame.mixer.music.stop() # Paneme taustamuusika kinni
+                        
                         self.mang_kaib = False
                         self.mang_labi = True
 
@@ -331,19 +606,32 @@ class McTrip:
                     if toit["rect"].y > self.KORGUS:
                         self.toidud.remove(toit)
                     
+                    # --- Toidu söömine ---
                     if self.auto.rect.colliderect(toit["rect"]):
-                        # Punktide jagamine vastavalt tüübile
                         if toit["tyyp"] == "friikad":
                             self.skoor.lisa_punkte(5)
+                            if self.heli_friikad: self.heli_friikad.play()
+                            
                         elif toit["tyyp"] == "burger":
                             self.skoor.lisa_punkte(10)
+                            if self.heli_burger: self.heli_burger.play()
+                            
                         elif toit["tyyp"] == "mcsoft":
                             self.skoor.lisa_punkte(15)
+                            if self.heli_mcsoft: self.heli_mcsoft.play()
                             
                         self.toidud.remove(toit)
             
                 if self.teksti_timer > 0:
                     self.teksti_timer -= 1
+
+            # --- FADE IN LOOGIKA ---
+            if self.cutscene_kaib and self.fading_in:
+                self.fade_alpha -= 3  # Muuda seda numbrit, et muuta hajumise kiirust
+                if self.fade_alpha <= 0:
+                    self.fade_alpha = 0
+                    self.fading_in = False
+                    self.algata_teksti_trykkimine() # Käivitame teksti alles siis, kui pilt on täiesti nähtav
 
             self.joonista()
             self.kell.tick(60)
