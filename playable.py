@@ -231,7 +231,7 @@ class McTrip:
         self.cutscene_pildid = []
         for i in range(1, len(self.cutscene_tekstid) + 1):
             try:
-                pilt = pygame.image.load(f"lopustseen{i}.png").convert()
+                pilt = pygame.image.load(f"Final_Cutscenes{i}.png").convert()
                 pilt = pygame.transform.scale(pilt, (self.LAAIUS, self.KORGUS))
                 self.cutscene_pildid.append(pilt)
             except:
