@@ -248,7 +248,7 @@ class McTrip:
         self.nupp_medium = pygame.Rect(200, 580, 235, 60)
         self.nupp_hard = pygame.Rect(200, 660, 230, 60)
         
-        # PLAY nupp
+        # Start game nupp
         self.nupp_play = pygame.Rect(220, 760, 200, 80)
 
     # --- UUS FUNKTSIOON: Teksti trükkimise algatamine ja mehe hüpe ---
@@ -374,7 +374,7 @@ class McTrip:
             raskused = [
                 (self.nupp_easy, "KERGE (200)", (0, 200, 0), "easy"),
                 (self.nupp_medium, "KESKMINE (300)", (200, 200, 0), "medium"),
-                (self.nupp_hard, "RASKE (400)", (200, 0, 0), "difficult")
+                (self.nupp_hard, "RASKE (400)", (200, 0, 0), "hard")
             ]
 
             for rect, tekst, varv, nimi in raskused:
